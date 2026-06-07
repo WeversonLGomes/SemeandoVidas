@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "author": "Semeando Vidas",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 80,
+      "left": 160,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot1",
+      "top": 20,
+      "left": -80,
+      "attrs": { "label": "Sensor Umidade Solo" },
+      "rotate": 0
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_bomba",
+      "top": 260,
+      "left": -80,
+      "attrs": { "color": "blue", "label": "Bomba (Relé)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_status",
+      "top": 320,
+      "left": -80,
+      "attrs": { "color": "green", "label": "LED Status" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_vazao",
+      "top": 160,
+      "left": -80,
+      "attrs": { "label": "Simular Pulso Vazão", "color": "blue" }
+    }
+  ],
+  "connections": [
+    ["pot1:GND",  "esp:GND.1", "black",  []],
+    ["pot1:VCC",  "esp:3V3",   "red",    []],
+    ["pot1:SIG",  "esp:34",    "orange", []],
+
+    ["led_bomba:A",   "esp:26",    "blue",  []],
+    ["led_bomba:C",   "esp:GND.2", "black", []],
+
+    ["led_status:A",  "esp:2",     "green", []],
+    ["led_status:C",  "esp:GND.3", "black", []],
+
+    ["btn_vazao:1.l", "esp:27",    "yellow", []],
+    ["btn_vazao:2.l", "esp:GND.4", "black",  []]
+  ]
+}
