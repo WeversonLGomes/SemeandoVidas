@@ -265,17 +265,22 @@ int8_t enviarLeituras(float umidade, float vazao_lmin, uint32_t pulsos) {
     char jsonBuf[256];
     serializeJson(doc, jsonBuf, sizeof(jsonBuf));
 
+    // Mostra o JSON que será enviado
+    Serial.println("  [→ Enviando ao backend]");
+    Serial.printf("     %s\n", jsonBuf);
+
     char respBuf[400];
     bool ok = httpPost("/api/leituras/esp32", jsonBuf, respBuf, sizeof(respBuf));
 
     if (!ok) {
+        Serial.println("  [✗ FALHA no envio]");
         piscaLed(4, 30);
         return 0;
     }
 
-    // Log
-    Serial.printf("[OK] umidade=%.1f%% | vazao=%.3f L/min | vol=%.4f L\n",
-                  umidade, vazao_lmin, volumeTotal_L);
+    // Mostra a resposta do backend
+    Serial.println("  [✔ Backend respondeu]");
+    Serial.printf("     %s\n", respBuf);
     piscaLed(1, 40);
 
     // Extrai comando da resposta JSON
@@ -398,15 +403,33 @@ void loop() {
         float umidade    = lerUmidade();
         float vazao_lmin = calcularVazao(pulsos, dt);
 
-        // Log no Monitor Serial
-        Serial.println("──────────────────────────────────");
-        Serial.printf("Umidade  : %.1f%%\n", umidade);
-        Serial.printf("Vazão    : %.3f L/min\n", vazao_lmin);
-        Serial.printf("Vol total: %.4f L\n", volumeTotal_L);
-        Serial.printf("Bomba    : %s\n", bombaLigada ? "LIGADA" : "desligada");
+        // ── Log detalhado no Monitor Serial ───────────────────
+        Serial.println("\n╔══════════════════════════════════════╗");
 #ifdef MODO_SIMULACAO
-        Serial.println("[SIMULACAO]");
+        Serial.println("║  LEITURA  [ MODO SIMULAÇÃO ]          ║");
+#else
+        Serial.println("║  LEITURA  [ HARDWARE REAL ]           ║");
 #endif
+        Serial.println("╚══════════════════════════════════════╝");
+
+        // Sensores
+        Serial.printf("  Umidade  : %.1f%%", umidade);
+        if      (umidade < UMIDADE_MINIMA_DEFAULT) Serial.println("  ⚠ SECO — bomba vai ligar");
+        else if (umidade > UMIDADE_MAXIMA_DEFAULT) Serial.println("  💧 EXCESSO");
+        else                                       Serial.println("  ✔ OK");
+
+#ifndef MODO_SIMULACAO
+        Serial.printf("  ADC bruto: %d  (seco=%d | molhado=%d)\n",
+                      lerAdcBruto(), UMIDADE_ADC_SECO, UMIDADE_ADC_MOLHADO);
+#endif
+
+        Serial.printf("  Vazão     : %.3f L/min\n", vazao_lmin);
+        Serial.printf("  Vol sessão: %.4f L\n", volumeTotal_L);
+        Serial.printf("  Bomba     : %s\n", bombaLigada ? "🔴 LIGADA" : "⚪ desligada");
+        Serial.printf("  WiFi RSSI : %d dBm\n", WiFi.RSSI());
+        Serial.printf("  IP local  : %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("  Uptime    : %lu s\n", millis() / 1000);
+        Serial.println("──────────────────────────────────────");
 
         // Envia e verifica comando remoto
         int8_t cmd = 0;
