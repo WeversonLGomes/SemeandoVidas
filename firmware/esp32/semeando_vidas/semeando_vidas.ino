@@ -343,9 +343,12 @@ void setup() {
     Serial.println("================================\n");
 
     // Configura pinos (pulamos no modo simulação, mas não faz mal)
-    pinMode(PINO_RELE_BOMBA,  OUTPUT);
-    pinMode(PINO_LED_STATUS,  OUTPUT);
+    pinMode(PINO_RELE_BOMBA,   OUTPUT);
+    pinMode(PINO_LED_STATUS,   OUTPUT);
     pinMode(PINO_SENSOR_VAZAO, INPUT_PULLUP);
+    // GPIO 34 é pino somente de entrada no ESP32 — não aceita OUTPUT nem PULLUP.
+    // Não precisa de pinMode para usar analogRead(), mas declaramos INPUT por clareza.
+    pinMode(PINO_UMIDADE_SOLO, INPUT);
     analogReadResolution(12);       // ADC 12-bit (0–4095)
     analogSetAttenuation(ADC_11db); // faixa 0–3.3V
 
