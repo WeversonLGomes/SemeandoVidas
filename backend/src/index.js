@@ -80,7 +80,13 @@ app.use((err, _req, res, _next) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`🌱 Semeando Vidas Backend — porta ${PORT}`);
-    console.log(`   Supabase: ${process.env.SUPABASE_URL}`);
-});
+// Inicia o servidor apenas quando executado diretamente (não no Vercel)
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`🌱 Semeando Vidas Backend — porta ${PORT}`);
+        console.log(`   Supabase: ${process.env.SUPABASE_URL}`);
+    });
+}
+
+// Exporta o app para uso como serverless function (Vercel)
+module.exports = { app };
