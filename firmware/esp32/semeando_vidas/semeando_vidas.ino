@@ -94,8 +94,8 @@ int lerAdcBruto() {
 /** Converte ADC para % de umidade */
 float lerUmidade() {
     float u = map(lerAdcBruto(),
-                  UMIDADE_ADC_SECO, UMIDADE_ADC_MOLHADO,
-                  0, 100);
+                  UMIDADE_ADC_MOLHADO, UMIDADE_ADC_SECO,
+                  100, 0);
     return constrain(u, 0.0f, 100.0f);
 }
 
@@ -104,7 +104,11 @@ float calcularVazao(uint32_t pulsos, unsigned long dt_ms) {
     if (dt_ms == 0) return 0.0f;
     float hz  = (float)pulsos / (dt_ms / 1000.0f);
     float lpm = hz / FATOR_VAZAO;
-    volumeTotal_L += lpm * (dt_ms / 60000.0f);
+    // Só acumula volume quando a bomba está ligada.
+    // Evita que pulsos espúrios do GPIO 27 (sensor flutuando) gerem volume falso.
+    if (bombaLigada) {
+        volumeTotal_L += lpm * (dt_ms / 60000.0f);
+    }
     return lpm;
 }
 
@@ -131,6 +135,9 @@ void desligarBomba(const char* motivo) {
         digitalWrite(PINO_RELE_BOMBA, HIGH);
 #endif
         bombaLigada = false;
+        // Reseta o volume ao desligar — cada sessão começa do zero.
+        // Permite que o backend detecte corretamente o volume por sessão.
+        volumeTotal_L = 0.0f;
         Serial.printf("[BOMBA] DESLIGADA — %s\n", motivo);
     }
 }
