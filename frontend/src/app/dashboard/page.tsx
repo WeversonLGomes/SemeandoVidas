@@ -28,6 +28,8 @@ export default function DashboardPage() {
     const [resumo, setResumo] = useState<ResumoPlanta | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    // Status online separado para não recriar o planta object no poll (evita re-renders)
+    const [dispositivoOnline, setDispositivoOnline] = useState<boolean | null>(null);
 
     // Autenticação
     useEffect(() => {
@@ -58,12 +60,13 @@ export default function DashboardPage() {
     const carregarDados = useCallback(async (p: PlantaDashboard, tk: string) => {
         try {
             const [u, v, ir, irAtiva, res, dash] = await Promise.allSettled([
-                api.leituras.umidadeHistorico(p.id, { limit: 48, horas: 24 }, tk),
-                api.leituras.vazaoHistorico(p.id, { limit: 24, horas: 24 }, tk),
+                // Limite aumentado para 200 (~100 min de dados a cada 30s)
+                api.leituras.umidadeHistorico(p.id, { limit: 200, horas: 24 }, tk),
+                api.leituras.vazaoHistorico(p.id,   { limit: 200, horas: 24 }, tk),
                 api.irrigacao.historico(p.id, tk),
                 api.irrigacao.ativa(p.id, tk),
                 api.leituras.resumo(p.id, tk),
-                // Atualiza status online/offline do dispositivo a cada ciclo
+                // Busca status online separado (sem mexer no objeto planta)
                 api.plantas.dashboard(tk),
             ]);
             if (u.status === 'fulfilled')   setUmidades(u.value as LeituraUmidade[]);
@@ -74,9 +77,10 @@ export default function DashboardPage() {
             if (dash.status === 'fulfilled') {
                 const list = dash.value as PlantaDashboard[];
                 setPlantas(list);
-                // Atualiza planta atual com dados frescos (inclusive dispositivo_online)
+                // Atualiza SOMENTE o status online — não troca o objeto planta inteiro
+                // (evita re-render em cascata que fazia os gráficos piscar/sumir)
                 const atualizada = list.find(x => x.id === p.id);
-                if (atualizada) setPlanta(atualizada);
+                if (atualizada) setDispositivoOnline(atualizada.dispositivo_online ?? false);
             }
         } finally {
             setLoading(false);
@@ -99,7 +103,7 @@ export default function DashboardPage() {
                 filter: `planta_id=eq.${planta.id}`,
             }, (payload) => {
                 const nova = payload.new as LeituraUmidade;
-                setUmidades(prev => [...prev.slice(-47), nova]);
+                setUmidades(prev => [...prev.slice(-199), nova]);
                 setResumo(prev => prev ? { ...prev, umidade_atual: nova.umidade, ultima_leitura: nova.created_at } : prev);
             })
             .on('postgres_changes', {
@@ -109,7 +113,7 @@ export default function DashboardPage() {
                 filter: `planta_id=eq.${planta.id}`,
             }, (payload) => {
                 const nova = payload.new as LeituraVazao;
-                setVazoes(prev => [...prev.slice(-23), nova]);
+                setVazoes(prev => [...prev.slice(-199), nova]);
             })
             .subscribe();
 
@@ -130,7 +134,8 @@ export default function DashboardPage() {
     }
 
     const umidadeAtual = resumo?.umidade_atual ?? null;
-    const online = planta?.dispositivo_online ?? false;
+    // dispositivoOnline é atualizado pelo poll sem recriar o objeto planta
+    const online = dispositivoOnline ?? planta?.dispositivo_online ?? false;
 
     if (!token) return null;
 
