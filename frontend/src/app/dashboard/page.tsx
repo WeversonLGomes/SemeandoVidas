@@ -56,17 +56,15 @@ export default function DashboardPage() {
         }).catch(console.error);
     }, [token]);
 
-    // Carrega dados da planta selecionada
+    // Carga completa — roda só na troca de planta ou no botão Atualizar
     const carregarDados = useCallback(async (p: PlantaDashboard, tk: string) => {
         try {
             const [u, v, ir, irAtiva, res, dash] = await Promise.allSettled([
-                // Limite aumentado para 200 (~100 min de dados a cada 30s)
                 api.leituras.umidadeHistorico(p.id, { limit: 200, horas: 24 }, tk),
                 api.leituras.vazaoHistorico(p.id,   { limit: 200, horas: 24 }, tk),
                 api.irrigacao.historico(p.id, tk),
                 api.irrigacao.ativa(p.id, tk),
                 api.leituras.resumo(p.id, tk),
-                // Busca status online separado (sem mexer no objeto planta)
                 api.plantas.dashboard(tk),
             ]);
             if (u.status === 'fulfilled')   setUmidades(u.value as LeituraUmidade[]);
@@ -77,13 +75,29 @@ export default function DashboardPage() {
             if (dash.status === 'fulfilled') {
                 const list = dash.value as PlantaDashboard[];
                 setPlantas(list);
-                // Atualiza SOMENTE o status online — não troca o objeto planta inteiro
-                // (evita re-render em cascata que fazia os gráficos piscar/sumir)
                 const atualizada = list.find(x => x.id === p.id);
                 if (atualizada) setDispositivoOnline(atualizada.dispositivo_online ?? false);
             }
         } finally {
             setLoading(false);
+        }
+    }, []);
+
+    // Poll leve — roda a cada 30s, NÃO substitui umidades/vazoes
+    // (o Realtime já adiciona os pontos novos; sobrescrever causava race condition)
+    const pollLeve = useCallback(async (p: PlantaDashboard, tk: string) => {
+        const [irAtiva, res, dash] = await Promise.allSettled([
+            api.irrigacao.ativa(p.id, tk),
+            api.leituras.resumo(p.id, tk),
+            api.plantas.dashboard(tk),
+        ]);
+        if (irAtiva.status === 'fulfilled') setIrrigacaoAtiva(irAtiva.value as Irrigacao | null);
+        if (res.status === 'fulfilled')     setResumo(res.value as ResumoPlanta);
+        if (dash.status === 'fulfilled') {
+            const list = dash.value as PlantaDashboard[];
+            setPlantas(list);
+            const atualizada = list.find(x => x.id === p.id);
+            if (atualizada) setDispositivoOnline(atualizada.dispositivo_online ?? false);
         }
     }, []);
 
@@ -117,14 +131,14 @@ export default function DashboardPage() {
             })
             .subscribe();
 
-        // Poll como fallback
-        const timer = setInterval(() => carregarDados(planta, token), POLL_INTERVAL);
+        // Poll leve a cada 30s — atualiza só resumo/status (NÃO substitui os gráficos)
+        const timer = setInterval(() => pollLeve(planta, token), POLL_INTERVAL);
 
         return () => {
             supabase.removeChannel(channel);
             clearInterval(timer);
         };
-    }, [planta?.id, token, carregarDados]);
+    }, [planta?.id, token, carregarDados, pollLeve]);
 
     async function refresh() {
         if (!planta || !token) return;
